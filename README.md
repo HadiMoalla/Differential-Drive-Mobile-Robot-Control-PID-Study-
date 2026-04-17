@@ -883,3 +883,132 @@ Manual tuning, despite being less systematic, proved to be more effective in ach
 This highlights the importance of adapting the tuning approach to the specific characteristics of the system rather than relying solely on standard methods.
 
 ---
+
+## 🚧 Failure Case & Velocity Scaling Fix
+
+### ⚠️ Problem: Goal Proximity Instability
+
+<p align="center">
+  <img src="figures/failure_case/failure_case.png" width="1000"><br>
+  <b>Figure 24.</b> Failure case with constant velocity.
+</p>
+
+When the goal is close to the robot’s starting position, the system exhibits a failure mode:  
+- The robot enters a circular motion  
+- It fails to converge to the goal  
+- This occurs under constant linear velocity (v = 0.8 m/s) 
+
+The robot rotates around the goal without converging, despite correct heading control.
+
+
+### 🔍 Root Cause Analysis
+
+This behavior arises from the interaction between:  
+- Constant forward velocity (v = const)  
+- Heading-based control (α)  
+- Small distance-to-goal (ρ)  
+
+**Key issue:**  
+- When ρ is small, the robot still moves forward aggressively  
+- Angular corrections alone are not sufficient to reduce positional error  
+- This creates a limit cycle (circular motion near the goal)  
+
+➡️ The controller corrects orientation, but position never settles  
+
+---
+
+### 💡 Proposed Solution: Distance-Based Velocity Scaling
+
+To prevent abrupt stopping and improve smooth deceleration near the goal, the linear velocity is scaled based on the remaining distance:
+
+$$
+v = k_p \cdot \rho \quad \text{for } \rho \leq \sqrt{2}
+$$
+
+Where:
+- $( \rho $): Euclidean distance to the goal  
+- $( k_p $): proportional gain
+
+
+### Parameter Selection
+
+- **Threshold distance ($\rho \leq \sqrt{2}$)**:  
+  This value corresponds to the diagonal of a 1×1 grid cell, which makes it a natural boundary for switching into a slowing-down regime when the robot enters a close-to-goal region.
+
+- **Velocity gain ($k_p$)**:
+
+$$
+k_p = \frac{V_{max}}{\sqrt{2}} = \frac{0.8}{\sqrt{2}}
+$$
+
+This ensures that the velocity remains bounded by the robot’s maximum limit:
+
+$$
+v \leq V_{max} = 0.8 \text{ m/s}
+$$
+
+### Effect
+
+- Smooth reduction of velocity as the robot approaches the goal  
+- Reduced overshoot due to gradual braking  
+- Stable behavior in the final approach phase
+
+### 📉 Behavior After Fix
+
+<p align="center">
+  <img src="figures/failure_case_fixed/failure_case_fixed.png" width="1000"><br>
+  <b>Figure 25.</b> Trajectory after applying velocity scaling.
+</p>
+
+The robot smoothly decelerates as it approaches the goal and successfully converges without oscillations.
+
+
+### 📊 Effect on System Behavior
+
+#### Before (Constant Velocity)
+- Persistent circular motion near goal  
+- No positional convergence  
+- Control effort wasted in rotation  
+
+#### After (Scaled Velocity)
+- Velocity decreases with distance  
+- Stable convergence to goal  
+- No oscillatory behavior  
+
+---
+
+### 🧠 Key Insight
+
+- Heading control alone is not sufficient for convergence when linear velocity is constant.  
+- Position control requires coupling between velocity and distance  
+- Reducing velocity near the goal prevents overshoot and limit cycles  
+
+
+### 📌 Final Takeaway
+
+- The failure was not due to PID tuning, but control structure  
+- A simple modification to velocity resolves the issue:  
+  - No need for complex controllers  
+  - Works reliably across all configurations  
+
+
+### 🧾 Summary of Contributions
+
+- Identified a limit-cycle failure mode in kinematic control  
+- Diagnosed the issue as velocity–distance decoupling  
+- Proposed and validated a distance-based velocity scaling law  
+- Demonstrated improved convergence in simulation
+
+---
+
+## 🏁 Conclusion
+
+This project investigated heading control of a differential-drive mobile robot using P, PI, PD, and PID controllers in a MATLAB simulation environment. The objective was to evaluate trajectory tracking performance and goal-reaching behavior under different control and tuning strategies.
+
+Three tuning methods were compared: manual tuning, Ziegler–Nichols, and MATLAB PID Tuner. Results showed that Ziegler–Nichols generally produces overly aggressive gains, leading to oscillatory behavior and large overshoot, while PID Tuner provides more balanced performance but still reflects the limitations of the underlying kinematic system. Manual tuning consistently achieved the best overall performance, particularly with a well-chosen proportional gain.
+
+A key observation is that increasing controller complexity does not guarantee improved performance for kinematic mobile robots. Integral action introduces windup and overshoot, while derivative action tends to amplify discrete changes in heading error, resulting in oscillations rather than true damping.
+
+A critical failure case was identified when the robot approached the goal under constant linear velocity, causing persistent circular motion and preventing convergence. This issue was not related to PID tuning but to the control structure itself. It was resolved by introducing a distance-based velocity scaling strategy, which smoothly reduces the robot’s speed near the target and restores stable convergence.
+
+Overall, the study highlights that effective mobile robot control depends more on matching the control structure to the system kinematics than on using complex controllers. For this system, simple proportional control combined with appropriate velocity scaling proved more robust and effective than full PID-based designs.
