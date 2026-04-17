@@ -479,3 +479,407 @@ This section summarizes the performance of different manually-tuned controller c
 - Metrics computed from heading error (α) and trajectory tracking performance.  
 
 ---
+
+## 🔧 Ziegler–Nichols PID Tuning Method
+
+The Ziegler–Nichols (ZN) method is a classical heuristic approach used to obtain initial PID gains based on the dynamic response of a system. It is commonly applied using either open-loop or closed-loop procedures.
+
+In this project, the open-loop (reaction curve) method is first considered.
+
+
+### Open-Loop (Reaction Curve) Method
+
+The open-loop Ziegler–Nichols method is based on approximating the system response using a first-order-plus-dead-time (FOPDT) model. The procedure typically involves:
+
+- Applying a step input without feedback control  
+- Recording the system output response  
+- Extracting process parameters such as delay (L) and time constant (T)  
+- Using standard ZN formulas to compute PID gains  
+
+A graphical method is usually used to estimate L and T from the step response. Then, the Ziegler–Nichols table for open-loop response is used to calculate the PID gains.
+
+<p align="center">
+  <img src="figures/Ziegler_Nichols_method/Ziegler_Nichols_open_Loop.jpg" width="600"><br>
+  <b>Figure 7.</b> Zieglar Nichols open Loop method
+</p>
+
+#### Ziegler–Nichols Open-Loop Tuning Table
+
+| Controller Type      | Kp             | Ti = 1/Ki         | Td = Kd   |
+|-----------------     |-----------     |-----------        |---------  |
+| P                    | T / L          | 0                 | 0         |
+| PI                   | 0.9 T / L      | L / 0.3           | 0         |
+| PID                  | 1.2 T / L      | 2L                | 0.5L      |
+
+
+### The Plant in Our Robot
+
+In this project, the plant refers to the robot dynamics being controlled:
+
+- The controlled variable is the heading angle (θ), regulated through angular velocity (ω)  
+- The linear velocity (v) is kept constant, resulting in a simplified SISO system  
+
+A step input $( \omega_{cmd} $) is applied, and the resulting heading $( \theta(t) $) is observed with the PID controller bypassed.
+
+A Simulink model is used to represent this open-loop configuration.
+
+<p align="center">
+  <img src="figures/Ziegler_Nichols_method/Ziegler_Nichols_open_Loop_Plant.png" width="400"><br>
+  <b>Figure 8.</b> Zieglar Nichols open Loop Plant
+</p>
+
+
+### Open-Loop Response
+
+The simulated response shows that $( \theta(t) $) increases linearly over time in response to the step input.
+
+This behavior is consistent with a pure integrator system, where angular velocity directly integrates into orientation without additional dynamics.
+<p align="center">
+  <img src="figures/Ziegler_Nichols_method/Ziegler_Nichols_open_Loop_response.png" width="400"><br>
+  <b>Figure 9.</b> Ziegler Nichols open loop response
+</p>
+
+
+### Limitation of Open-Loop ZN Method
+
+The open-loop Ziegler–Nichols method requires a system response with a clear transient shape to estimate delay (L) and time constant (T).
+
+However, in this case:
+
+- The response has no observable delay  
+- The output behaves as a pure integrator (θ increases linearly)  
+- No meaningful transient region exists for tangent-based estimation  
+
+Therefore, the reaction curve method cannot be applied to this system, as the required model parameters (L and T) cannot be extracted reliably.
+
+---
+
+## 🔄 Ziegler–Nichols Closed-Loop (Ultimate Gain Method)
+
+The closed-loop Ziegler–Nichols tuning method determines PID parameters experimentally by bringing the system to the stability limit under feedback control.
+
+Unlike the open-loop method, this approach does not require an explicit model of the plant and instead relies on the closed-loop dynamics.
+
+
+### Procedure
+
+The tuning procedure is as follows:
+
+- Set the controller to proportional-only control:  
+  $( K_i = 0, \; K_d = 0 $)
+- Gradually increase the proportional gain $( K_p $)
+- Observe the system response until sustained oscillations with constant amplitude occur  
+
+At this point, two parameters are recorded:
+
+- $( K_u $): the ultimate gain that causes sustained oscillations  
+- $( T_u $): the oscillation period  
+
+This method relies on the feedback loop behavior and the system stability boundary.
+
+### Simulink Implementation
+
+To perform the test, the PID controller was replaced with a proportional gain block representing $( K_u $) in the closed-loop Simulink model.
+
+A closed-loop diagram was used to observe the system response under increasing proportional gain.
+
+<p align="center">
+  <img src="figures/Ziegler_Nichols_method/Ziegler_Nichols_closed_Loop_Simulink.png" width="800"><br>
+  <b>Figure 10.</b> Ziegler Nichols closed loop block diagram
+</p>
+
+### Experimental Results
+
+By increasing $( K_p $) applied to the heading error $( \alpha $), the system reached a sustained oscillatory state.
+
+The following values were obtained:
+
+- $( K_u = 31 $)  
+- $( T_u = 0.5 \ \text{s} $)  
+
+The resulting oscillatory response of $( \theta(t) $) is shown in the corresponding simulation plot.
+
+<p align="center">
+  <img src="figures/Ziegler_Nichols_method/Ziegler_Nichols_closed_Loop_response.png" width="600"><br>
+  <b>Figure 11.</b> Ziegler Nichols closed loop response
+</p>
+
+
+### PID Gain Calculation
+
+The obtained $( K_u $) and $( T_u $) values were substituted into the standard Ziegler–Nichols closed-loop tuning rules to compute the PID gains.
+
+#### Ziegler–Nichols Closed-Loop Tuning Table
+
+| Controller Type | Kp       | Ki              | Kd            |
+|-----------------|----------|-----------------|---------------|
+| P               | 0.5 Ku   | 0               | 0             |
+| PI              | 0.45 Ku  | 0.45 Ku / Tu    | 0             |
+| PID             | 0.6 Ku   | 1.2 Ku / Tu     | 3 Ku Tu / 40  |
+
+
+#### Computed Controller Gains
+
+| Control Type | Kp   | Ki    | Kd     |
+|--------------|------|-------|--------|
+| P            | 15.5 | 0     | 0      |
+| PI           | 13.95| 33.48 | 0      |
+| PID          | 18.6 | 74.4  | 1.1625 |
+
+## 🔄 Controller Comparison
+
+The resulting controllers (P, PI, and PID) were tested in simulation.
+
+The following responses were analyzed:
+
+- Heading error $( \alpha $) over time  
+- Robot trajectory from start to goal position  
+
+These results were used to evaluate the effectiveness of the Ziegler–Nichols tuning method in achieving stable and accurate goal-reaching behavior.
+
+
+## 📊 Results and Discussion (Ziegler–Nichols Tuning)
+
+The PID gains obtained using the Ziegler–Nichols closed-loop method were evaluated using P, PI, and PID controllers. Performance was assessed based on heading error $( \alpha $) in terms of overshoot, settling time, and steady-state error.
+
+
+### P Controller Response
+
+<table align="center" style="table-layout: fixed;">
+  <tr>
+    <td align="center" width="50%">
+      <img src="figures/Ziegler_Nichols_method/P_Ziegler_Nichols_response.jpg" height="400"><br>
+    </td>
+    <td align="center" width="50%">
+      <img src="figures/Ziegler_Nichols_method/P_Ziegler_Nichols_traj.jpg" height="400"><br>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" valign="top">
+      <b>Figure 12.</b> Response of P controller tuned by Ziegler Nichols method
+    </td>
+    <td align="center" valign="top">
+      <b>Figure 13.</b> Robot trajectory of P controller tuned by Ziegler Nichols method
+    </td>
+  </tr>
+</table>
+
+- Overshoot: 0%  
+- Settling time: 0.8 s  
+- Steady-state error: 0  
+
+The proportional controller provides a fast and stable response with no oscillations. The heading error converges quickly to zero, resulting in efficient trajectory tracking.
+
+**Observation:** In this kinematic system, a properly tuned P controller is sufficient to achieve excellent performance without the need for additional control terms.
+
+
+### PI Controller Response
+
+<table align="center" style="table-layout: fixed;">
+  <tr>
+    <td align="center" width="50%">
+      <img src="figures/Ziegler_Nichols_method/PI_Ziegler_Nichols_response.jpg" height="400"><br>
+    </td>
+    <td align="center" width="50%">
+      <img src="figures/Ziegler_Nichols_method/PI_Ziegler_Nichols_traj.jpg" height="400"><br>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" valign="top">
+      <b>Figure 14.</b> Response of PI controller tuned by Ziegler Nichols method
+    </td>
+    <td align="center" valign="top">
+      <b>Figure 15.</b> Robot trajectory of PI controller tuned by Ziegler Nichols method
+    </td>
+  </tr>
+</table>
+
+- Overshoot: 64.05%  
+- Settling time: 2.65 s  
+- Steady-state error: 0  
+
+The addition of the integral term eliminates steady-state error but introduces significant overshoot and oscillatory behavior. The response becomes slower compared to the P controller.
+
+**Observation:** The integral action accumulates error over time, leading to aggressive corrections and degraded transient performance.
+
+
+### PID Controller Response
+
+<table align="center" style="table-layout: fixed;">
+  <tr>
+    <td align="center" width="50%">
+      <img src="figures/Ziegler_Nichols_method/PID_Ziegler_Nichols_response.jpg" height="400"><br>
+    </td>
+    <td align="center" width="50%">
+      <img src="figures/Ziegler_Nichols_method/PID_Ziegler_Nichols_traj.jpg" height="400"><br>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" valign="top">
+      <b>Figure 16.</b> Response of PID controller tuned by Ziegler Nichols method
+    </td>
+    <td align="center" valign="top">
+      <b>Figure 17.</b> Robot trajectory of PID controller tuned by Ziegler Nichols method
+    </td>
+  </tr>
+</table>
+
+- Overshoot: 77.3%  
+- Settling time: 10.05 s  
+- Steady-state error: 0.0432  
+
+The PID controller exhibits the largest overshoot and the slowest settling time among all configurations. Additionally, a non-zero steady-state error appears despite the presence of integral action.
+
+**Observation:** The derivative term does not improve performance in this case and instead contributes to oscillatory behavior when combined with aggressive Ziegler–Nichols tuning.
+
+
+### General Observation
+
+The Ziegler–Nichols method produces aggressive controller gains, which lead to large overshoot and oscillations in this kinematic system.
+
+- The P controller provides the best overall performance  
+- The PI and PID controllers introduce unnecessary oscillations  
+- Increasing controller complexity does not guarantee improved performance  
+
+Although Ziegler–Nichols offers a systematic tuning approach, it is not well suited for this type of nonlinear, geometry-driven control problem without further refinement.
+
+---
+
+## ⚙️ MATLAB PID Tuner Method
+
+The MATLAB PID Tuner app provides an automatic approach for tuning PID controllers based on the system dynamics. It computes controller gains to achieve a balance between fast response and robustness.
+
+Unlike manual tuning or Ziegler–Nichols methods, the PID Tuner adjusts the controller parameters by analyzing the system behavior and optimizing performance according to desired design criteria.
+
+
+### Tuning Procedure
+
+The PID Tuner was applied to the system by:
+
+- Linearizing the control loop around an operating point  
+- Selecting the desired controller structure (P, PI, PID)  
+- Adjusting the response speed and robustness using the tuner interface  
+
+The tool automatically computes the controller gains based on these settings.
+
+
+### Obtained Parameters
+
+After applying the PID Tuner for P, PI, and PID configurations, the resulting gains are summarized below:
+
+| Controller | Kp    | Ki    | Kd  |
+|------------|-------|-------|-----|
+| P          | 27.53 | —     | —   |
+| PI         | 17.52 | 61.13 | —   |
+| PID        | 13.47 | 33.64 | 0.2 |
+
+
+### System Response
+
+The tuned controllers were simulated, and the following responses were analyzed:
+
+- Heading error $( \alpha $) over time  
+- Robot trajectory from start to goal position  
+
+The corresponding plots are shown below.
+
+### P Controller Response
+
+<table align="center" style="table-layout: fixed;">
+  <tr>
+    <td align="center" width="50%">
+      <img src="figures/Matlab_tuner_method/P_Matlab_tuner_response.jpg" height="400"><br>
+    </td>
+    <td align="center" width="50%">
+      <img src="figures/Matlab_tuner_method/P_Matlab_tuner_traj.jpg" height="400"><br>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" valign="top">
+      <b>Figure 18.</b> Response of P controller tuned by MATLAB PID Tuner
+    </td>
+    <td align="center" valign="top">
+      <b>Figure 19.</b> Robot trajectory of P controller tuned by MATLAB PID Tuner
+    </td>
+  </tr>
+</table>
+
+### PI Controller Response
+
+<table align="center" style="table-layout: fixed;">
+  <tr>
+    <td align="center" width="50%">
+      <img src="figures/Matlab_tuner_method/PI_Matlab_tuner_response.jpg" height="400"><br>
+    </td>
+    <td align="center" width="50%">
+      <img src="figures/Matlab_tuner_method/PI_Matlab_tuner_traj.jpg" height="400"><br>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" valign="top">
+      <b>Figure 20.</b> Response of PI controller tuned by MATLAB PID Tuner
+    </td>
+    <td align="center" valign="top">
+      <b>Figure 21.</b> Robot trajectory of PI controller tuned by MATLAB PID Tuner
+    </td>
+  </tr>
+</table>
+
+### PID Controller Response
+
+<table align="center" style="table-layout: fixed;">
+  <tr>
+    <td align="center" width="50%">
+      <img src="figures/Matlab_tuner_method/PID_Matlab_tuner_response.jpg" height="400"><br>
+    </td>
+    <td align="center" width="50%">
+      <img src="figures/Matlab_tuner_method/PID_Matlab_tuner_traj.jpg" height="400"><br>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center" valign="top">
+      <b>Figure 22.</b> Response of PID controller tuned by MATLAB PID Tuner
+    </td>
+    <td align="center" valign="top">
+      <b>Figure 23.</b> Robot trajectory of PID controller tuned by MATLAB PID Tuner
+    </td>
+  </tr>
+</table>
+
+## 💬 Discussion
+
+The MATLAB PID Tuner method provides an automated and more controlled approach to selecting controller gains compared to manual tuning and Ziegler–Nichols methods.
+
+Based on the obtained results:
+
+- The P controller achieves fast convergence with very low overshoot (0.38%) and zero steady-state error, similar to the Ziegler–Nichols case  
+- The PI controller eliminates steady-state error but introduces large overshoot (77.14%), indicating strong integral action  
+- The PID controller improves upon the Ziegler–Nichols PID by reducing settling time (2.55 s vs 10.05 s) and eliminating steady-state error, although overshoot remains relatively high (64.05%)  
+
+Overall, the PID Tuner produces more balanced controller parameters compared to Ziegler–Nichols, particularly for the PID configuration. However, the results confirm that adding integral and derivative actions does not necessarily improve performance for this system.
+
+The ability to adjust the trade-off between response speed and robustness makes the PID Tuner a practical tool, but its effectiveness still depends on the nature of the controlled system.
+
+---
+
+## 🔍 Comparison of Tuning Methods
+
+A comparison between manual tuning, Ziegler–Nichols, and MATLAB PID Tuner reveals key insights into their effectiveness for this system.
+
+- Manual tuning provided the most effective results, allowing direct control over system behavior and leading to fast convergence with minimal oscillations when parameters were carefully selected  
+- Ziegler–Nichols tuning produced aggressive parameter values, resulting in large overshoot and oscillatory responses, indicating that this method is not well suited for the given kinematic model without further adjustment  
+- PID Tuner offered a more balanced and automated tuning approach, improving stability compared to Ziegler–Nichols and reducing extreme behaviors, although it still introduced noticeable overshoot in some configurations  
+
+Overall, the results show that tuning methods designed for general dynamic systems do not always translate well to simplified kinematic models.
+
+Manual tuning, despite being less systematic, proved to be more effective in achieving stable and efficient robot motion in this case.
+
+This highlights the importance of adapting the tuning approach to the specific characteristics of the system rather than relying solely on standard methods.
+
+---
