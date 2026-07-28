@@ -1,6 +1,10 @@
 # Differential-Drive-Mobile-Robot-Control-PID-Study
 
 Differential-drive mobile robot control using P, PI, and PID controllers. MATLAB simulation of robot motion from start to goal with trajectory visualization and performance comparison.
+ 
+## Summary
+ 
+This project investigates heading control for a differential-drive mobile robot using P, PI, PD, and PID controllers, tuned via three different methods: manual tuning, Ziegler-Nichols, and MATLAB's PID Tuner. Counter to typical PID intuition, a well-tuned proportional-only controller consistently outperformed the more complex configurations — adding integral and derivative terms introduced overshoot and oscillatory behavior without meaningfully improving convergence in this kinematic system. A separate failure mode was also identified, where the robot entered persistent circular motion near the goal under constant linear velocity; this was resolved by introducing a distance-based velocity scaling law, restoring stable convergence without any change to the controller structure itself.
 
 ---
 
